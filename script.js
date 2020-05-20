@@ -1,8 +1,11 @@
 const debug = false;
 let tempMatrix = new THREE.Matrix4();
+let tempVector = new THREE.Vector3();
 let camera, scene, renderer, container;
 let conLeft, conRight, xrConLeft, xrConRight, controllerRay, overheadTarget
 let light, debugDisplay;
+
+let testCube;
 
 let menuBase, menuOpenAnimation;
 let menuVisible, menuDelayTimeout;
@@ -48,16 +51,26 @@ function init() {
   overheadTarget.name = 'overheadTarget';
   scene.add(overheadTarget);
 
+  controllerRay = new THREE.Raycaster();
   conLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
   conRight = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshLambertMaterial({ color: 0x0000ff }));
   scene.add(conLeft, conRight);
 
-  controllerRay = new THREE.Raycaster();
-  menuBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.02, 0.02, 32), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+  menuBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.02, 0.02, 32), new THREE.MeshLambertMaterial({ color: 0x326fa8, emissive: 0x000000 }));
   menuBase.visible = false;
   scene.add(menuBase);
 
+  let marker = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.005, 0.05), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+  marker.position.y = 0.01;
+  marker.position.z = 0.17;
+  menuBase.add(marker);
+
   menuBase.add(menuCubeGroup);
+
+  // testCube = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
+  // testCube.position.z -= 1;
+  // testCube.position.y += 0.5;
+  // scene.add(testCube);
 
   if (!debug) {
     overheadTarget.visible = false;
@@ -133,9 +146,12 @@ function render() {
       menuBase.position.z = xrConRight.position.z;
     }
 
-    // menuBase.lookAt(camera.position);
-    // menuBase.rotation.z = Math.atan2( ( camera.position.x - menuBase.position.x ), ( camera.position.z - menuBase.position.z ) );
+    tempVector.setFromMatrixPosition(camera.matrixWorld);
+    tempVector.y = menuBase.position.y;
+    menuBase.lookAt(tempVector);
   }
+
+
 
   checkMenuRay(menuHand);
 
@@ -208,7 +224,10 @@ function generateMenuCubes () {
   const radius = 0.15;
   const totalBoxes = 10;
   for(let i = 0; i <= totalBoxes; i++) {
-    let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+    let map = new THREE.TextureLoader().load('https://picsum.photos/100?' + Math.random(Date.now()));
+    let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshBasicMaterial({ map: map }));
+
+    // let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
     box.position.x = Math.sin(((360 / totalBoxes) * i) * (Math.PI/180)) * radius;
     box.position.z = Math.cos(((360 / totalBoxes) * i) * (Math.PI/180)) * radius;
     box.position.y = 0.05;
