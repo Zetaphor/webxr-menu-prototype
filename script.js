@@ -8,7 +8,7 @@ let light, debugDisplay;
 
 let testCube;
 
-let navigationTargetGroup, navigationTargetLeft,
+let navigating, navigationTargetGroup, navigationTargetLeft,
   navigationTargetRight, navigationTargetUp, navigationTargetDown;
 
 let menuBase, menuOpenAnimation;
@@ -25,10 +25,10 @@ const menuMinScale = { x: 0.1, y: 0.1, z: 0.1 };
 const menuMaxScale = { x: 1.0, y: 1.0, z: 1.0 };
 let menuCurrentScale = { x: 0.1, y: 0.1, z: 0.1 };
 
-let menuCubePositions = [];
 let menuCubeGroupCurrentScale = { x: 0.1, y: 0.1, z: 0.1 };
 const menuCubeGroupMinScale = { x: 0.1, y: 0.1, z: 0.1 };
 const menuCubeGroupMaxScale = { x: 1.0, y: 1.0, z: 1.0 };
+const menuCubeScrollDuration = 350;
 
 // Use right hand to control input
 // Map actions to directions (Select, back, etc)
@@ -66,10 +66,10 @@ function init() {
   navigationTargetRight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
   navigationTargetUp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
   navigationTargetDown = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
-  navigationTargetLeft.position.x = -0.1;
-  navigationTargetRight.position.x = 0.1;
-  navigationTargetUp.position.y = 0.1;
-  navigationTargetDown.position.y = -0.1;
+  navigationTargetLeft.position.x = -0.08;
+  navigationTargetRight.position.x = 0.08;
+  navigationTargetUp.position.y = 0.08;
+  navigationTargetDown.position.y = -0.08;
   navigationTargetLeft.z = 0.1;
   navigationTargetRight.z = 0.1;
   navigationTargetUp.z = 0.1;
@@ -178,7 +178,7 @@ function render() {
     tempVector.setFromMatrixPosition(camera.matrixWorld);
     tempVector.y = menuBase.position.y;
     menuBase.lookAt(tempVector);
-    checkNavigationRay();
+    if (!navigating) checkNavigationRay();
     animateSpinningMenuCubes();
   }
 
@@ -199,6 +199,7 @@ function render() {
 }
 
 function checkNavigationRay() {
+  if (navigating) return;
   let controller = menuHand === 'left' ? conRight : conLeft;
 
   tempMatrix.identity().extractRotation(controller.matrixWorld);
@@ -206,6 +207,7 @@ function checkNavigationRay() {
   controllerRay.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
   const intersections = controllerRay.intersectObjects([navigationTargetLeft, navigationTargetRight, navigationTargetUp, navigationTargetDown]);
   if (intersections.length) {
+    navigating = true;
     if (intersections[0].object.name === 'left') navigationInputLeft();
     else if (intersections[0].object.name === 'right') navigationInputRight();
     else if (intersections[0].object.name === 'up') navigationInputUp();
@@ -267,16 +269,9 @@ function generateMenuCubes () {
   for(let i = 0; i < totalBoxes; i++) {
     const map = new THREE.TextureLoader().load('https://picsum.photos/100?' + Math.random(Date.now()));
     let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshBasicMaterial({ map: map }));
-    const boxPosition = {
-      x: Math.sin(((360 / totalBoxes) * i) * (Math.PI/180)) * radius,
-      y: 0.05,
-      z: Math.cos(((360 / totalBoxes) * i) * (Math.PI/180)) * radius
-    };
-    if (i === 0) boxPosition.y += 0.03;
-    menuCubePositions.push(boxPosition);
-    box.position.x = boxPosition.x;
-    box.position.y = boxPosition.y;
-    box.position.z = boxPosition.z;
+    box.position.x = Math.sin(((360 / totalBoxes) * i) * (Math.PI/180)) * radius;
+    box.position.y = 0.05;
+    box.position.z = Math.cos(((360 / totalBoxes) * i) * (Math.PI/180)) * radius;
     menuCubeGroup.add(box);
   }
 
@@ -321,10 +316,7 @@ function animateHideMenuCubes() {
 }
 
 function animateSpinningMenuCubes() {
-  menuCubeGroup.children[0].rotation.x += 0.003;
-  menuCubeGroup.children[0].rotation.z += 0.003;
   for (let i = 0; i < menuCubeGroup.children.length; i++) {
-    const element = menuCubeGroup.children[i];
     menuCubeGroup.children[i].rotation.y -= 0.003;
   }
 }
@@ -375,17 +367,41 @@ function  animatNavigationTargetClose() {
 }
 
 function navigationInputLeft() {
-  console.log('left');
+  animateMenuCubesScroll('left');
 }
 
 function navigationInputRight() {
-  console.log('right');
+  animateMenuCubesScroll('right');
+}
+
+function animateMenuCubesScroll(direction) {
+  for (let i = 0; i < menuCubeGroup.children.length; i++) {
+    let groupIndex;
+    if (direction === 'right') groupIndex = i === 0 ? menuCubeGroup.children.length - 1 : i - 1;
+    else groupIndex = i == menuCubeGroup.children.length - 1 ? 0 : i + 1;
+
+    anime({
+      targets: menuCubeGroup.children[i].position,
+      x: menuCubeGroup.children[groupIndex].position.x,
+      y: menuCubeGroup.children[groupIndex].position.y,
+      z: menuCubeGroup.children[groupIndex].position.z,
+      duration: menuCubeScrollDuration,
+      easing: 'linear',
+      loop: false
+    });
+  }
+  let timeout = setTimeout(function () {
+    navigating = false;
+    clearTimeout(timeout);
+  }, menuCubeScrollDuration + 50);
 }
 
 function navigationInputUp() {
   console.log('up');
+  // navigating = false;
 }
 
 function navigationInputDown() {
   console.log('down');
+  // navigating = false;
 }
