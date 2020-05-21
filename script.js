@@ -2,10 +2,14 @@ const debug = false;
 let tempMatrix = new THREE.Matrix4();
 let tempVector = new THREE.Vector3();
 let camera, scene, renderer, container;
-let conLeft, conRight, xrConLeft, xrConRight, controllerRay, overheadTarget
+let conLeft, conRight, xrConLeft, xrConRight,
+  controllerRay, overheadTarget;
 let light, debugDisplay;
 
 let testCube;
+
+let navigationTargetGroup, navigationTargetLeft,
+  navigationTargetRight, navigationTargetUp, navigationTargetDown;
 
 let menuBase, menuOpenAnimation;
 let menuVisible, menuDelayTimeout;
@@ -21,10 +25,10 @@ const menuMinScale = { x: 0.1, y: 0.1, z: 0.1 };
 const menuMaxScale = { x: 1.0, y: 1.0, z: 1.0 };
 let menuCurrentScale = { x: 0.1, y: 0.1, z: 0.1 };
 
+let menuCubePositions = [];
 let menuCubeGroupCurrentScale = { x: 0.1, y: 0.1, z: 0.1 };
 const menuCubeGroupMinScale = { x: 0.1, y: 0.1, z: 0.1 };
 const menuCubeGroupMaxScale = { x: 1.0, y: 1.0, z: 1.0 };
-
 
 // Use right hand to control input
 // Map actions to directions (Select, back, etc)
@@ -55,6 +59,27 @@ function init() {
   conLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
   conRight = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshLambertMaterial({ color: 0x0000ff }));
   scene.add(conLeft, conRight);
+
+  navigationTargetGroup = new THREE.Group();
+  navigationTargetGroup.visible = false;
+  navigationTargetLeft = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+  navigationTargetRight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+  navigationTargetUp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+  navigationTargetDown = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+  navigationTargetLeft.position.x = -0.1;
+  navigationTargetRight.position.x = 0.1;
+  navigationTargetUp.position.y = 0.1;
+  navigationTargetDown.position.y = -0.1;
+  navigationTargetLeft.z = 0.1;
+  navigationTargetRight.z = 0.1;
+  navigationTargetUp.z = 0.1;
+  navigationTargetDown.z = 0.1;
+  navigationTargetLeft.name = 'left';
+  navigationTargetRight.name = 'right';
+  navigationTargetUp.name = 'up';
+  navigationTargetDown.name = 'down';
+  navigationTargetGroup.add(navigationTargetLeft, navigationTargetRight, navigationTargetUp, navigationTargetDown);
+  scene.add(navigationTargetGroup);
 
   menuBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.02, 0.02, 32), new THREE.MeshLambertMaterial({ color: 0x326fa8, emissive: 0x000000 }));
   menuBase.visible = false;
@@ -88,9 +113,7 @@ function init() {
 
 function requestSession() {
   navigator.xr.isSessionSupported('immersive-vr').then(function (supported) {
-    let options = {
-      optionalFeatures: ['local-floor', 'bounded-floor']
-    };
+    let options = { optionalFeatures: ['local-floor', 'bounded-floor'] };
     navigator.xr.requestSession('immersive-vr', options).then(onSessionStarted);
   });
 }
@@ -137,21 +160,27 @@ function render() {
 
   if (menuVisible) {
     if (menuHand === 'left') {
-      menuBase.position.x = xrConLeft.position.x;
+      menuBase.position.x = xrConLeft.position.x + 0.2;
       menuBase.position.y = xrConLeft.position.y + 0.1;
       menuBase.position.z = xrConLeft.position.z;
+      navigationTargetGroup.position.x = xrConRight.position.x;
+      navigationTargetGroup.position.y = xrConRight.position.y;
+      navigationTargetGroup.position.z = xrConRight.position.z - 0.1;
     } else {
-      menuBase.position.x = xrConRight.position.x;
+      menuBase.position.x = xrConRight.position.x - 0.2;
       menuBase.position.y = xrConRight.position.y + 0.1;
       menuBase.position.z = xrConRight.position.z;
+      navigationTargetGroup.position.x = xrConLeft.position.x;
+      navigationTargetGroup.position.y = xrConLeft.position.y;
+      navigationTargetGroup.position.z = xrConLeft.position.z - 0.1;
     }
 
     tempVector.setFromMatrixPosition(camera.matrixWorld);
     tempVector.y = menuBase.position.y;
     menuBase.lookAt(tempVector);
+    checkNavigationRay();
+    animateSpinningMenuCubes();
   }
-
-
 
   checkMenuRay(menuHand);
 
@@ -169,8 +198,23 @@ function render() {
   renderer.render(scene, camera);
 }
 
+function checkNavigationRay() {
+  let controller = menuHand === 'left' ? conRight : conLeft;
+
+  tempMatrix.identity().extractRotation(controller.matrixWorld);
+  controllerRay.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  controllerRay.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+  const intersections = controllerRay.intersectObjects([navigationTargetLeft, navigationTargetRight, navigationTargetUp, navigationTargetDown]);
+  if (intersections.length) {
+    if (intersections[0].object.name === 'left') navigationInputLeft();
+    else if (intersections[0].object.name === 'right') navigationInputRight();
+    else if (intersections[0].object.name === 'up') navigationInputUp();
+    else if (intersections[0].object.name === 'down') navigationInputDown();
+  }
+}
+
 function checkMenuRay() {
-  let controller = menuHand === 'left' ? conLeft : conRight
+  let controller = menuHand === 'left' ? conLeft : conRight;
 
   tempMatrix.identity().extractRotation(controller.matrixWorld);
   controllerRay.ray.origin.setFromMatrixPosition(controller.matrixWorld);
@@ -181,7 +225,10 @@ function checkMenuRay() {
 
   let openGesture, closeGesture = false;
 
-  if (menuHand == 'left') {
+  // Left hand: side1 = right, side2 = left
+  // Right hand: side1 = left, side2 = right
+
+  if (menuHand === 'left') {
     if (side1Intersects.length) openGesture = true;
     else if (side2Intersects.length) closeGesture = true;
   } else {
@@ -195,42 +242,41 @@ function checkMenuRay() {
 
 function openMenu() {
   menuVisible = true;
+  if (!menuCubeGroup.children.length) generateMenuCubes();
+  animatNavigationTargetOpen();
   animateMenuOpen();
-  showMenuCubes();
+  animateShowMenuCubes();
   if (menuHand === 'left') conLeft.material.emissive.setHex(0x0000ff);
   if (menuHand === 'right') conRight.material.emissive.setHex(0xff0000);
 }
 
 function closeMenu() {
   menuVisible = false;
-  hideMenuCubes();
+  animateHideMenuCubes();
   animateMenuClose();
+  animatNavigationTargetClose();
 
   if (menuHand === 'left') conLeft.material.emissive.setHex(0x000000);
   if (menuHand === 'right') conRight.material.emissive.setHex(0x000000);
-}
-
-function showMenuCubes () {
-  if (!menuCubeGroup.children.length) generateMenuCubes();
-  animateShowMenuCubes();
-}
-
-function hideMenuCubes () {
-  animateHideMenuCubes();
 }
 
 function generateMenuCubes () {
   menuCubeGroup.visible = false;
   const radius = 0.15;
   const totalBoxes = 10;
-  for(let i = 0; i <= totalBoxes; i++) {
-    let map = new THREE.TextureLoader().load('https://picsum.photos/100?' + Math.random(Date.now()));
+  for(let i = 0; i < totalBoxes; i++) {
+    const map = new THREE.TextureLoader().load('https://picsum.photos/100?' + Math.random(Date.now()));
     let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshBasicMaterial({ map: map }));
-
-    // let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
-    box.position.x = Math.sin(((360 / totalBoxes) * i) * (Math.PI/180)) * radius;
-    box.position.z = Math.cos(((360 / totalBoxes) * i) * (Math.PI/180)) * radius;
-    box.position.y = 0.05;
+    const boxPosition = {
+      x: Math.sin(((360 / totalBoxes) * i) * (Math.PI/180)) * radius,
+      y: 0.05,
+      z: Math.cos(((360 / totalBoxes) * i) * (Math.PI/180)) * radius
+    };
+    if (i === 0) boxPosition.y += 0.03;
+    menuCubePositions.push(boxPosition);
+    box.position.x = boxPosition.x;
+    box.position.y = boxPosition.y;
+    box.position.z = boxPosition.z;
     menuCubeGroup.add(box);
   }
 
@@ -268,13 +314,19 @@ function animateHideMenuCubes() {
     update: function() {
       menuCubeGroup.scale.set(menuCubeGroupCurrentScale.x, menuCubeGroupCurrentScale.y, menuCubeGroupCurrentScale.z);
     },
-    begin: function () {
-      animateMenuClose();
-    },
     complete: function () {
-      // menuCubeGroup.visible = false;
+      menuCubeGroup.visible = false;
     }
   });
+}
+
+function animateSpinningMenuCubes() {
+  menuCubeGroup.children[0].rotation.x += 0.003;
+  menuCubeGroup.children[0].rotation.z += 0.003;
+  for (let i = 0; i < menuCubeGroup.children.length; i++) {
+    const element = menuCubeGroup.children[i];
+    menuCubeGroup.children[i].rotation.y -= 0.003;
+  }
 }
 
 function animateMenuOpen() {
@@ -290,9 +342,6 @@ function animateMenuOpen() {
     easing: menuOpenEasing,
     loop: false,
     duration: 1000,
-    begin: function () {
-      showMenuCubes();
-    },
     update: function() {
       menuBase.scale.set(menuCurrentScale.x, menuCurrentScale.y, menuCurrentScale.z);
     },
@@ -315,4 +364,28 @@ function animateMenuClose() {
       menuBase.visible = false;
     }
   });
+}
+
+function  animatNavigationTargetOpen() {
+  navigationTargetGroup.visible = true;
+}
+
+function  animatNavigationTargetClose() {
+  navigationTargetGroup.visible = false;
+}
+
+function navigationInputLeft() {
+  console.log('left');
+}
+
+function navigationInputRight() {
+  console.log('right');
+}
+
+function navigationInputUp() {
+  console.log('up');
+}
+
+function navigationInputDown() {
+  console.log('down');
 }
