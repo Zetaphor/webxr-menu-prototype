@@ -398,10 +398,10 @@ function animateMenuCubesScroll(direction) {
 
 function navigationInputUp() {
   console.log('up');
-  // navigating = false;
+  navigating = false;
 }
 
 function navigationInputDown() {
   console.log('down');
-  // navigating = false;
+  navigating = false;
 }
