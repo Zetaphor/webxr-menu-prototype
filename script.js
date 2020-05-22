@@ -6,6 +6,9 @@ let conLeft, conRight, xrConLeft, xrConRight,
   controllerRay, overheadTarget;
 let light, debugDisplay;
 
+let shaderFrogRuntime;
+let clock;
+
 let testCube;
 
 let navigating, navigationTargetGroup, navigationTargetLeft,
@@ -14,12 +17,15 @@ let navigating, navigationTargetGroup, navigationTargetLeft,
 let menuBase, menuOpenAnimation;
 let menuVisible, menuDelayTimeout;
 let menuCubeGroup = new THREE.Group();
+let menuDisplayImage;
 const menuHand = 'left';
 const menuOpenDelay = 2000;
 const menuOpenEasing = 'easeOutElastic(1, 0.5)';
 const menuCloseEasing = 'linear';
 const menuCubeGroupShowEasing = 'spring(1, 80, 10, 0)';
 const menuCubeGroupHideEasing = 'spring(1, 80, 10, 0)';
+let menuCubeGroupTotal = 10;
+const menuCubeGroupRadius = 0.15;
 
 const menuMinScale = { x: 0.1, y: 0.1, z: 0.1 };
 const menuMaxScale = { x: 1.0, y: 1.0, z: 1.0 };
@@ -81,8 +87,16 @@ function init() {
   navigationTargetGroup.add(navigationTargetLeft, navigationTargetRight, navigationTargetUp, navigationTargetDown);
   scene.add(navigationTargetGroup);
 
+
+  shaderFrogRuntime = new ShaderRuntime();
+  clock = new THREE.Clock();
+
   menuBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.02, 0.02, 32), new THREE.MeshLambertMaterial({ color: 0x326fa8, emissive: 0x000000 }));
   menuBase.visible = false;
+  shaderFrogRuntime.load('./Circuit_Grid.json', function( shaderData ) {
+    let material = shaderFrogRuntime.get(shaderData.name);
+    menuBase.material = material;
+  });
   scene.add(menuBase);
 
   let marker = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.005, 0.05), new THREE.MeshLambertMaterial({ color: 0xffffff }));
@@ -91,6 +105,10 @@ function init() {
   menuBase.add(marker);
 
   menuBase.add(menuCubeGroup);
+
+  menuDisplayImage = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.005, 0.05), new THREE.MeshBasicMaterial());
+  menuDisplayImage.visible = false;
+  menuBase.add(menuDisplayImage);
 
   // testCube = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
   // testCube.position.z -= 1;
@@ -159,6 +177,7 @@ function render() {
   }
 
   if (menuVisible) {
+    shaderFrogRuntime.updateShaders(clock.getElapsedTime());
     if (menuHand === 'left') {
       menuBase.position.x = xrConLeft.position.x + 0.2;
       menuBase.position.y = xrConLeft.position.y + 0.1;
@@ -263,15 +282,18 @@ function closeMenu() {
 }
 
 function generateMenuCubes () {
-  menuCubeGroup.visible = false;
-  const radius = 0.15;
-  const totalBoxes = 10;
-  for(let i = 0; i < totalBoxes; i++) {
+  // menuCubeGroup.visible = false;
+
+  for (var i = menuCubeGroup.children.length - 1; i >= 0; i--) {
+    menuCubeGroup.remove(menuCubeGroup.children[i]);
+  }
+
+  for(let i = 0; i < menuCubeGroupTotal; i++) {
     const map = new THREE.TextureLoader().load('https://picsum.photos/100?' + Math.random(Date.now()));
     let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshBasicMaterial({ map: map }));
-    box.position.x = Math.sin(((360 / totalBoxes) * i) * (Math.PI/180)) * radius;
+    box.position.x = Math.sin(((360 / menuCubeGroupTotal) * i) * (Math.PI/180)) * menuCubeGroupRadius;
     box.position.y = 0.05;
-    box.position.z = Math.cos(((360 / totalBoxes) * i) * (Math.PI/180)) * radius;
+    box.position.z = Math.cos(((360 / menuCubeGroupTotal) * i) * (Math.PI/180)) * menuCubeGroupRadius;
     menuCubeGroup.add(box);
   }
 
@@ -294,6 +316,9 @@ function animateShowMenuCubes() {
     delay: 100,
     update: function() {
       menuCubeGroup.scale.set(menuCubeGroupCurrentScale.x, menuCubeGroupCurrentScale.y, menuCubeGroupCurrentScale.z);
+    },
+    complete: function() {
+      showDisplay();
     }
   });
 }
@@ -336,11 +361,12 @@ function animateMenuOpen() {
     duration: 1000,
     update: function() {
       menuBase.scale.set(menuCurrentScale.x, menuCurrentScale.y, menuCurrentScale.z);
-    },
+    }
   });
 }
 
 function animateMenuClose() {
+  hideDisplay();
   anime({
     targets: menuCurrentScale,
     x: menuMinScale.x,
@@ -380,6 +406,7 @@ function animateMenuCubesScroll(direction) {
     if (direction === 'right') groupIndex = i === 0 ? menuCubeGroup.children.length - 1 : i - 1;
     else groupIndex = i == menuCubeGroup.children.length - 1 ? 0 : i + 1;
 
+    hideDisplay();
     anime({
       targets: menuCubeGroup.children[i].position,
       x: menuCubeGroup.children[groupIndex].position.x,
@@ -393,15 +420,33 @@ function animateMenuCubesScroll(direction) {
   let timeout = setTimeout(function () {
     navigating = false;
     clearTimeout(timeout);
+    showDisplay();
   }, menuCubeScrollDuration + 50);
 }
 
+function showDisplay() {
+  menuDisplayImage.visible = true;
+  menuDisplayImage.material.map = new THREE.TextureLoader().load('https://picsum.photos/100?' + Math.random(Date.now()));
+}
+
+function hideDisplay() {
+  menuDisplayImage.visible = false;
+}
+
 function navigationInputUp() {
-  console.log('up');
-  navigating = false;
+  let timeout = setTimeout(function () {
+    menuCubeGroupTotal++;
+    if (menuCubeGroupTotal > 20) menuCubeGroupTotal = 20;
+    generateMenuCubes();
+    navigating = false;
+  }, 300);
 }
 
 function navigationInputDown() {
-  console.log('down');
-  navigating = false;
+  let timeout = setTimeout(function () {
+    menuCubeGroupTotal--;
+    if (!menuCubeGroupTotal) menuCubeGroupTotal = 1;
+    generateMenuCubes();
+    navigating = false;
+  }, 300);
 }

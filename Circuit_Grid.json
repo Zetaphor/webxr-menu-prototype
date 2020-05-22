@@ -1,0 +1,80 @@
+{
+  "id": 54,
+  "name": "Circuit Grid",
+  "fragment": "// Credit http://glslsandbox.com/e#23316.0\nprecision highp float;\n\n#define PI 3.1415926535897932384626433832795\n\nuniform float time;\nuniform float resolution;\nuniform float intensity;\nuniform float speed;\nuniform vec3 lightColor;\nuniform vec3 baseColor;\n\nvarying vec2 vUv;\nvarying vec3 vPosition;\n\nvec2 circuit(vec2 p) {\n\tp = fract(p);\n\tfloat r = 0.3;\n\tfloat v = 0.0, g = 1.0;\n\tfloat d;\n\t\n\tconst int iter = 7;\n\tfor(int i = 0; i < iter; i ++)\n\t{\n\t\td = p.x - r;\n\t\tg += pow(clamp(1.0 - abs(d), 0.0, 1.0), 200.0);\n\t\t\n\t\tif(d > 0.0) {\n\t\t\tp.x = (p.x - r) / (1.8 - r);\n\t\t}\n\t\telse {\n\t\t\tp.x = p.x;\n\t\t}\n\t\tp = p.yx;\n\t}\n\tv /= float(iter);\n\treturn vec2(g, v);\n}\n\nvoid main()\n{\n\tvec2 uv = ( vUv.xy + 0.5 ) * resolution;\n\tvec2 cid2 = floor(uv);\n\tfloat cid = (cid2.y + cid2.x);\n\n\tvec2 dg = circuit(uv);\n\tfloat d = dg.x;\n\tvec3 col1 = (0.2-vec3(max(min(d, 2.0) - 1.0, 0.0))) * baseColor;\n\tvec3 col2 = vec3(max(d - 1.0, 0.0)) * lightColor;\n\n\tfloat f = max(0.4 - mod(uv.y - uv.x + (time * speed) + (dg.y * 0.2), 2.5), 0.0) * intensity;\n\tcol2 *= f;\n\t\n\tgl_FragColor = vec4(col1 + col2, 1.0);\n}",
+  "vertex": "precision highp float;\nprecision highp int;\nuniform mat4 modelMatrix;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\n\nattribute vec3 position;\nattribute vec3 normal;\nattribute vec2 uv;\nattribute vec2 uv2;\n\nvarying vec2 vUv;\nvarying vec3 vPosition;\n\nvoid main() {\n    vUv = uv;\n    vPosition = position;\n    gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n}",
+  "uniforms": {
+    "time": {
+      "type": "f",
+      "glslType": "float",
+      "description": "",
+      "textureId": null,
+      "runtime": {
+        "texture": null
+      }
+    },
+    "resolution": {
+      "type": "f",
+      "glslType": "float",
+      "value": "6",
+      "description": "",
+      "textureId": null,
+      "runtime": {
+        "texture": null
+      }
+    },
+    "intensity": {
+      "type": "f",
+      "glslType": "float",
+      "value": "10",
+      "description": "",
+      "textureId": null,
+      "runtime": {
+        "texture": null
+      }
+    },
+    "speed": {
+      "type": "f",
+      "glslType": "float",
+      "value": "1",
+      "description": "",
+      "textureId": null,
+      "runtime": {
+        "texture": null
+      }
+    },
+    "lightColor": {
+      "type": "c",
+      "glslType": "vec3",
+      "value": {
+        "r": 0,
+        "g": 0.9647058823529412,
+        "b": 0.14901960784313725
+      },
+      "description": "",
+      "textureId": null,
+      "runtime": {
+        "texture": null
+      }
+    },
+    "baseColor": {
+      "type": "c",
+      "glslType": "vec3",
+      "value": {
+        "r": 0.7019607843137254,
+        "g": 0.7019607843137254,
+        "b": 0.7019607843137254
+      },
+      "description": "",
+      "textureId": null,
+      "runtime": {
+        "texture": null
+      }
+    }
+  },
+  "url": "http://shaderfrog.com/app/view/54",
+  "user": {
+    "username": "andrewray",
+    "url": "http://shaderfrog.com/app/profile/andrewray"
+  }
+}
