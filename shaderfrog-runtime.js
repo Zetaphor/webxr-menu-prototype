@@ -1,3 +1,5 @@
+// import * as THREE from 'three';
+
 let defaultThreeUniforms = [
     'normalMatrix', 'viewMatrix', 'projectionMatrix', 'position', 'normal',
     'modelViewMatrix', 'uv', 'uv2', 'modelMatrix'
@@ -6,6 +8,7 @@ let defaultThreeUniforms = [
 function ShaderRuntime() {}
 
 ShaderRuntime.prototype = {
+
     mainCamera: null,
     cubeCameras: {},
 
@@ -319,3 +322,5 @@ function omit( obj, ...keys ) {
     }
     return cloned;
 }
+
+// export default ShaderRuntime;

@@ -106,8 +106,11 @@ function init() {
 
   menuBase.add(menuCubeGroup);
 
-  menuDisplayImage = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.005, 0.05), new THREE.MeshBasicMaterial());
+  menuDisplayImage = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.005, 0.18), new THREE.MeshBasicMaterial());
   menuDisplayImage.visible = false;
+  menuDisplayImage.material.transparent = true;
+  menuDisplayImage.material.opacity = 0.8;
+  menuDisplayImage.position.y = 0.2;
   menuBase.add(menuDisplayImage);
 
   // testCube = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
@@ -197,6 +200,8 @@ function render() {
     tempVector.setFromMatrixPosition(camera.matrixWorld);
     tempVector.y = menuBase.position.y;
     menuBase.lookAt(tempVector);
+    menuDisplayImage.lookAt(tempVector);
+    // menuDisplayImage.rotation.x = 1;
     if (!navigating) checkNavigationRay();
     animateSpinningMenuCubes();
   }
