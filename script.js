@@ -14,26 +14,28 @@ let testCube;
 let navigating, navigationTargetGroup, navigationTargetLeft,
   navigationTargetRight, navigationTargetUp, navigationTargetDown;
 
-let menuBase, menuOpenAnimation;
-let menuVisible, menuDelayTimeout;
-let menuCubeGroup = new THREE.Group();
+let menuGroup;
+let menuBase, menuVisible, menuDelayTimeout;
+let menuCubeGroup;
 let menuDisplayImage;
 const menuHand = 'left';
-const menuOpenDelay = 2000;
-const menuOpenEasing = 'easeOutElastic(1, 0.5)';
-const menuCloseEasing = 'linear';
-const menuCubeGroupShowEasing = 'spring(1, 80, 10, 0)';
-const menuCubeGroupHideEasing = 'spring(1, 80, 10, 0)';
 let menuCubeGroupTotal = 10;
 const menuCubeGroupRadius = 0.15;
 
-const menuMinScale = { x: 0.1, y: 0.1, z: 0.1 };
-const menuMaxScale = { x: 1.0, y: 1.0, z: 1.0 };
-let menuCurrentScale = { x: 0.1, y: 0.1, z: 0.1 };
+let menuOpening, menuClosing;
+let menuOpenTimeline, menuCloseTimeline;
+let menuCubeGroupTimeline;
 
-let menuCubeGroupCurrentScale = { x: 0.1, y: 0.1, z: 0.1 };
-const menuCubeGroupMinScale = { x: 0.1, y: 0.1, z: 0.1 };
-const menuCubeGroupMaxScale = { x: 1.0, y: 1.0, z: 1.0 };
+let menuAnimProperties = {
+  scaleX: 0.1,
+  scaleY: 0.1,
+  scaleZ: 0.1,
+  posX: 0,
+  posY: 0,
+  posZ: 0
+};
+
+let menuCubeGroupCurrentScale;
 const menuCubeScrollDuration = 350;
 
 // Use right hand to control input
@@ -91,32 +93,32 @@ function init() {
   shaderFrogRuntime = new ShaderRuntime();
   clock = new THREE.Clock();
 
-  menuBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.02, 0.02, 32), new THREE.MeshLambertMaterial({ color: 0x326fa8, emissive: 0x000000 }));
+  menuGroup = new THREE.Group();
+  scene.add(menuGroup);
+
+  menuBase = new THREE.Mesh(new THREE.SphereGeometry(0.03, 32, 32), new THREE.MeshLambertMaterial({ color: 0x326fa8, emissive: 0x000000 }));
   menuBase.visible = false;
   shaderFrogRuntime.load('./Circuit_Grid.json', function( shaderData ) {
     let material = shaderFrogRuntime.get(shaderData.name);
     menuBase.material = material;
   });
-  scene.add(menuBase);
+  menuGroup.add(menuBase);
 
   let marker = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.005, 0.05), new THREE.MeshLambertMaterial({ color: 0xffffff }));
   marker.position.y = 0.01;
   marker.position.z = 0.17;
-  menuBase.add(marker);
+  menuGroup.add(marker);
 
-  menuBase.add(menuCubeGroup);
+  menuCubeGroup = new THREE.Group();
+  menuCubeGroup.visible = false;
+  menuGroup.add(menuCubeGroup);
 
   menuDisplayImage = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.005, 0.18), new THREE.MeshBasicMaterial());
   menuDisplayImage.visible = false;
   menuDisplayImage.material.transparent = true;
   menuDisplayImage.material.opacity = 0.8;
   menuDisplayImage.position.y = 0.2;
-  menuBase.add(menuDisplayImage);
-
-  // testCube = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
-  // testCube.position.z -= 1;
-  // testCube.position.y += 0.5;
-  // scene.add(testCube);
+  menuGroup.add(menuDisplayImage);
 
   if (!debug) {
     overheadTarget.visible = false;
@@ -179,31 +181,34 @@ function render() {
     overheadTarget.position.z = xrConRight.position.z;
   }
 
-  if (menuVisible) {
+  if (menuVisible || menuOpening || menuClosing) {
     shaderFrogRuntime.updateShaders(clock.getElapsedTime());
     if (menuHand === 'left') {
-      menuBase.position.x = xrConLeft.position.x + 0.2;
-      menuBase.position.y = xrConLeft.position.y + 0.1;
-      menuBase.position.z = xrConLeft.position.z;
-      navigationTargetGroup.position.x = xrConRight.position.x;
-      navigationTargetGroup.position.y = xrConRight.position.y;
-      navigationTargetGroup.position.z = xrConRight.position.z - 0.1;
+      menuGroup.position.x = xrConLeft.position.x + 0.2;
+      menuGroup.position.y = xrConLeft.position.y + 0.1;
+      menuGroup.position.z = xrConLeft.position.z;
+      // navigationTargetGroup.position.x = xrConRight.position.x;
+      // navigationTargetGroup.position.y = xrConRight.position.y;
+      // navigationTargetGroup.position.z = xrConRight.position.z - 0.1;
     } else {
-      menuBase.position.x = xrConRight.position.x - 0.2;
-      menuBase.position.y = xrConRight.position.y + 0.1;
-      menuBase.position.z = xrConRight.position.z;
-      navigationTargetGroup.position.x = xrConLeft.position.x;
-      navigationTargetGroup.position.y = xrConLeft.position.y;
-      navigationTargetGroup.position.z = xrConLeft.position.z - 0.1;
+      menuGroup.position.x = xrConRight.position.x - 0.2;
+      menuGroup.position.y = xrConRight.position.y + 0.1;
+      menuGroup.position.z = xrConRight.position.z;
+      // navigationTargetGroup.position.x = xrConLeft.position.x;
+      // navigationTargetGroup.position.y = xrConLeft.position.y;
+      // navigationTargetGroup.position.z = xrConLeft.position.z - 0.1;
     }
 
     tempVector.setFromMatrixPosition(camera.matrixWorld);
-    tempVector.y = menuBase.position.y;
-    menuBase.lookAt(tempVector);
-    menuDisplayImage.lookAt(tempVector);
-    // menuDisplayImage.rotation.x = 1;
-    if (!navigating) checkNavigationRay();
-    animateSpinningMenuCubes();
+    tempVector.y = menuGroup.position.y;
+
+    if (menuVisible) {
+      menuGroup.lookAt(tempVector);
+      menuDisplayImage.lookAt(tempVector);
+      // menuDisplayImage.rotation.x = 1;
+      if (!navigating) checkNavigationRay();
+      animateSpinningMenuCubes();
+    }
   }
 
   checkMenuRay(menuHand);
@@ -262,14 +267,33 @@ function checkMenuRay() {
     else if (side1Intersects.length) closeGesture = true;
   }
 
-  if (menuVisible && closeGesture) closeMenu();
-  else if (!menuVisible && openGesture) openMenu();
+  if (menuVisible && closeGesture) menuCloseGesture();
+  else if (!menuVisible && openGesture) menuOpenGesture();
+}
+
+function menuOpenGesture() {
+  if (menuVisible) return;
+  if (!menuOpening) {
+    console.log('Started');
+    menuOpening = true;
+    animateMenuOpen();
+  }
+}
+
+function menuCloseGesture() {
+  if (menuClosing) return;
+  if (menuOpening) {
+    menuOpenTimeline.pause();
+    if (typeof menuCubeGroupTimeline['pause'] !== 'undefined') menuCubeGroupTimeline.pause();
+    menuOpening = false;
+  }
+  animateMenuClose();
 }
 
 function openMenu() {
   menuVisible = true;
   if (!menuCubeGroup.children.length) generateMenuCubes();
-  animatNavigationTargetOpen();
+  animateNavigationTargetOpen();
   animateMenuOpen();
   animateShowMenuCubes();
   if (menuHand === 'left') conLeft.material.emissive.setHex(0x0000ff);
@@ -287,8 +311,6 @@ function closeMenu() {
 }
 
 function generateMenuCubes () {
-  // menuCubeGroup.visible = false;
-
   for (var i = menuCubeGroup.children.length - 1; i >= 0; i--) {
     menuCubeGroup.remove(menuCubeGroup.children[i]);
   }
@@ -297,43 +319,94 @@ function generateMenuCubes () {
     const map = new THREE.TextureLoader().load('https://picsum.photos/100?' + Math.random(Date.now()));
     let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshBasicMaterial({ map: map }));
     box.position.x = Math.sin(((360 / menuCubeGroupTotal) * i) * (Math.PI/180)) * menuCubeGroupRadius;
-    box.position.y = 0.05;
     box.position.z = Math.cos(((360 / menuCubeGroupTotal) * i) * (Math.PI/180)) * menuCubeGroupRadius;
+    box.scale.set(0.1, 0.1, 0.1);
     menuCubeGroup.add(box);
   }
 
   let box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
-  box.position.y = 0.05;
+  box.scale.set(0.1, 0.1, 0.1);
   menuCubeGroup.add(box);
 }
 
-function animateShowMenuCubes() {
-  menuCubeGroupCurrentScale = { x: menuCubeGroupMinScale.x, y: menuCubeGroupMinScale.y, z: menuCubeGroupMinScale.z };
-  menuCubeGroup.scale.set(menuCubeGroupMinScale.x, menuCubeGroupMinScale.y, menuCubeGroupMinScale.z);
-  menuCubeGroup.visible = true;
-  anime({
-    targets: menuCubeGroupCurrentScale,
-    x: menuCubeGroupMaxScale.x,
-    y: menuCubeGroupMaxScale.y,
-    z: menuCubeGroupMaxScale.z,
-    easing: menuCubeGroupShowEasing,
-    loop: false,
-    delay: 100,
-    update: function() {
-      menuCubeGroup.scale.set(menuCubeGroupCurrentScale.x, menuCubeGroupCurrentScale.y, menuCubeGroupCurrentScale.z);
-    },
-    complete: function() {
-      showDisplay();
+function animateMenuOpen() {
+  menuGroup.visible = true;
+  menuGroup.scale.set(1, 1, 1);
+  menuAnimProperties.scaleX, menuAnimProperties.scaleY, menuAnimProperties.scaleZ  = 0.1;
+  menuBase.scale.set(0.1, 0.1, 0.1);
+  menuBase.visible = true;
+  menuOpenTimeline = gsap.timeline();
+  menuOpenTimeline.to(menuAnimProperties, {
+    scaleX: 1, scaleY: 1, scaleZ: 1,
+    duration: 1,
+    ease: 'back',
+    onUpdate: function () {
+      menuBase.scale.set(menuAnimProperties.scaleX, menuAnimProperties.scaleY, menuAnimProperties.scaleZ);
     }
+  }).to(menuAnimProperties, {
+    scaleX: 8, scaleY: 0.5, scaleZ: 8,
+    duration: 2,
+    ease: 'back',
+    onUpdate: function () {
+      menuBase.scale.set(menuAnimProperties.scaleX, menuAnimProperties.scaleY, menuAnimProperties.scaleZ);
+    }
+  }).then(function () {
+    animateShowMenuCubes();
   });
+}
+
+function animateMenuClose() {
+  hideDisplay();
+  menuAnimProperties.scaleX, menuAnimProperties.scaleY, menuAnimProperties.scaleZ = 1;
+  menuCloseTimeline = gsap.to(menuAnimProperties, {
+    scaleX: 0.1, scaleY: 0.1, scaleZ: 0.1,
+      duration: 1,
+      ease: 'back',
+      onUpdate: function () {
+        menuGroup.scale.set(menuAnimProperties.scaleX, menuAnimProperties.scaleY, menuAnimProperties.scaleZ);
+      }
+    }
+  ).then(function() {
+    menuBase.visible = false;
+    menuGroup.visible = false;
+    menuCubeGroup.visible = false;
+    menuVisible = false;
+    menuClosing = false;
+  });
+}
+
+function animateShowMenuCubes() {
+  generateMenuCubes();
+  menuCubeGroup.visible = true;
+  for (let i = 0; i < menuCubeGroup.children.length; i++) {
+    let childAnimProperties = { scaleX: 0.1, scaleY: 0.1, scaleZ: 0.1, posY: 0 };
+    menuCubeGroup.children[i].visible = true;
+    gsap.to(childAnimProperties, {
+      scaleX: 1.0, scaleY: 1.0, scaleZ: 1.0,
+      posY: 0.08,
+      duration: 0.3,
+      ease: 'back',
+      delay: 0.2 * i,
+      onStart: function () {
+        menuCubeGroup.children[i].visible = true;
+      },
+      onUpdate: function () {
+        menuCubeGroup.children[i].scale.set(childAnimProperties.scaleX, childAnimProperties.scaleY, childAnimProperties.scaleZ);
+        menuCubeGroup.children[i].position.y = childAnimProperties.posY;
+      }
+    }).then(function() {
+      menuVisible = true;
+      menuOpening = false;
+    });
+  }
 }
 
 function animateHideMenuCubes() {
   anime({
     targets: menuCubeGroupCurrentScale,
-    x: menuCubeGroupMinScale.x,
-    y: menuCubeGroupMinScale.y,
-    z: menuCubeGroupMinScale.z,
+    x: menuCubeGroupStartScale.x,
+    y: menuCubeGroupStartScale.y,
+    z: menuCubeGroupStartScale.z,
     easing: menuCubeGroupShowEasing,
     loop: false,
     update: function() {
@@ -351,45 +424,7 @@ function animateSpinningMenuCubes() {
   }
 }
 
-function animateMenuOpen() {
-  menuCurrentScale = { x: menuMinScale.x, y: menuMinScale.y, z: menuMinScale.z };
-  menuBase.scale.set(menuMinScale.x, menuMinScale.y, menuMinScale.z);
-  menuBase.visible = true;
-
-  menuOpenAnimation = anime({
-    targets: menuCurrentScale,
-    x: menuMaxScale.x,
-    y: menuMaxScale.y,
-    z: menuMaxScale.z,
-    easing: menuOpenEasing,
-    loop: false,
-    duration: 1000,
-    update: function() {
-      menuBase.scale.set(menuCurrentScale.x, menuCurrentScale.y, menuCurrentScale.z);
-    }
-  });
-}
-
-function animateMenuClose() {
-  hideDisplay();
-  anime({
-    targets: menuCurrentScale,
-    x: menuMinScale.x,
-    y: menuMinScale.y,
-    z: menuMinScale.z,
-    easing: menuCloseEasing,
-    loop: false,
-    duration: 350,
-    update: function() {
-      menuBase.scale.set(menuCurrentScale.x, menuCurrentScale.y, menuCurrentScale.z);
-    },
-    complete: function () {
-      menuBase.visible = false;
-    }
-  });
-}
-
-function  animatNavigationTargetOpen() {
+function  animateNavigationTargetOpen() {
   navigationTargetGroup.visible = true;
 }
 

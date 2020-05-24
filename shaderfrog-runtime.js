@@ -1,3 +1,4 @@
+// https://github.com/AndrewRayCode/ShaderFrog-Runtime/pull/22
 // import * as THREE from 'three';
 
 let defaultThreeUniforms = [
